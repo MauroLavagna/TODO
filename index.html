@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./index.css">
+    <title>TODO List App</title>
+</head>
+<body>
+    <div class="container">
+        <h1>TODO List App</h1>
+        <div class="input-group">
+            <input type="text" id="taskInput" placeholder="Enter a new task">
+            <select id="groupSelect"></select>
+            <button onclick="addTask()">Add Task</button>
+        </div>
+        <div class="input-group" id="newGroupInput">
+            <input type="text" id="newGroupName" placeholder="Enter new group name">
+            <button onclick="addGroup()">Add Group</button>
+        </div>
+        <div id="taskLists"></div>
+    </div>
+
+    <script>
+        let tasks = {};
+        const baseURL = window.location.origin;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${protocol}//${window.location.host}`);
+
+        socket.onmessage = (event) => {
+            tasks = JSON.parse(event.data);
+            renderTasks();
+        };
+
+        async function fetchTasks() {
+            const response = await fetch(`${baseURL}/tasks`);
+            tasks = await response.json();
+            renderTasks();
+        }
+
+        async function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const groupSelect = document.getElementById('groupSelect');
+            const taskText = taskInput.value.trim();
+            const group = groupSelect.value;
+
+            if (taskText) {
+                const task = { text: taskText, completed: false };
+                const response = await fetch(`${baseURL}/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group, task })
+                });
+                tasks = await response.json();
+                taskInput.value = '';
+            }
+        }
+
+        async function addGroup() {
+            const newGroupName = document.getElementById('newGroupName').value.trim();
+            if (newGroupName && !tasks[newGroupName]) {
+                tasks[newGroupName] = [];
+                const response = await fetch(`${baseURL}/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group: newGroupName, task: { text: '', completed: false } })
+                });
+                tasks = await response.json();
+                document.getElementById('newGroupName').value = '';
+            } else {
+                alert('Please enter a valid and unique group name.');
+            }
+        }
+
+        async function deleteGroup(group) {
+            if (confirm(`Are you sure you want to delete the group "${group}" and all its tasks?`)) {
+                try {
+                    const response = await fetch(`${baseURL}/groups/${encodeURIComponent(group)}`, {
+                        method: 'DELETE',
+                    });
+                    if (response.ok) {
+                        tasks = await response.json();
+                        renderTasks();
+                    } else {
+                        console.error('Failed to delete group:', await response.text());
+                    }
+                } catch (error) {
+                    console.error('Error deleting group:', error);
+                }
+            }
+        }
+
+        async function toggleComplete(group, index) {
+            const task = tasks[group][index];
+            task.completed = !task.completed;
+            const response = await fetch(`${baseURL}/tasks`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group, index, task })
+            });
+            tasks = await response.json();
+        }
+
+        async function editTask(group, index) {
+            const newText = prompt('Edit task:', tasks[group][index].text);
+            if (newText !== null) {
+                const task = { text: newText.trim(), completed: tasks[group][index].completed };
+                const response = await fetch(`${baseURL}/tasks`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group, index, task })
+                });
+                tasks = await response.json();
+            }
+        }
+
+        async function deleteTask(group, index) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                const response = await fetch(`${baseURL}/tasks`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group, index })
+                });
+                if (response.ok) {
+                    tasks = await response.json();
+                    renderTasks();
+                } else {
+                    console.error('Failed to delete task:', await response.text());
+                }
+            }
+        }
+
+        function renderTasks() {
+    const taskLists = document.getElementById('taskLists');
+    const groupSelect = document.getElementById('groupSelect');
+    const currentSelectedGroup = groupSelect.value;
+    taskLists.innerHTML = '';
+    groupSelect.innerHTML = '';
+
+    for (const group in tasks) {
+        const option = document.createElement('option');
+        option.value = group;
+        option.textContent = group;
+        groupSelect.appendChild(option);
+
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'group-header';
+        groupHeader.innerHTML = `
+            <h2>${group}</h2>
+            <div class="group-actions">
+                <button onclick="deleteGroup('${group}')">Delete Group</button>
+            </div>
+        `;
+        taskLists.appendChild(groupHeader);
+
+        const ul = document.createElement('ul');
+        ul.setAttribute('data-group', group);
+        ul.addEventListener('dragover', dragOver);
+        ul.addEventListener('drop', drop);
+
+        let taskIndex = 1;
+        tasks[group].forEach((task, index) => {
+            if (task.text !== '') {
+                const li = document.createElement('li');
+                li.draggable = true;
+                li.setAttribute('data-index', index);
+                li.addEventListener('dragstart', dragStart);
+                li.addEventListener('dragend', dragEnd);
+                li.innerHTML = `
+                    <span class="task-number">${taskIndex}.</span> <!-- Use taskIndex instead of index + 1 -->
+                    <span class="${task.completed ? 'completed' : ''}">${task.text}</span>
+                    <div class="task-actions">
+                        <button onclick="toggleComplete('${group}', ${index})">${task.completed ? 'Undo' : 'Complete'}</button>
+                        <button onclick="editTask('${group}', ${index})">Edit</button>
+                        <button onclick="deleteTask('${group}', ${index})">Delete</button>
+                    </div>
+                `;
+                ul.appendChild(li);
+                taskIndex++;
+            }
+        });
+        taskLists.appendChild(ul);
+    }
+
+    if (currentSelectedGroup && groupSelect.querySelector(`option[value="${currentSelectedGroup}"]`)) {
+        groupSelect.value = currentSelectedGroup;
+    }
+}
+
+
+        function dragStart(e) {
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                group: e.target.parentNode.getAttribute('data-group'),
+                index: parseInt(e.target.getAttribute('data-index'))
+            }));
+            e.target.classList.add('dragging');
+        }
+
+        function dragEnd(e) {
+            e.target.classList.remove('dragging');
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        async function drop(e) {
+            e.preventDefault();
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            const sourceGroup = data.group;
+            const sourceIndex = data.index;
+            const targetGroup = e.currentTarget.getAttribute('data-group');
+            let targetIndex = tasks[targetGroup].length;
+
+            const closestLi = e.target.closest('li');
+            if (closestLi) {
+                targetIndex = parseInt(closestLi.getAttribute('data-index'));
+            }
+
+            const [movedTask] = tasks[sourceGroup].splice(sourceIndex, 1);
+            tasks[targetGroup].splice(targetIndex, 0, movedTask);
+
+            const response = await fetch(`${baseURL}/tasks/reorder`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group: targetGroup, tasks: tasks[targetGroup] })
+            });
+            tasks = await response.json();
+        }
+
+        fetchTasks();
+    </script>
+</body>
+</html>
