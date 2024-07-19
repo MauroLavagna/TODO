@@ -4,18 +4,24 @@ body {
     color: #ffffff;
     margin: 0;
     padding: 20px;
+    box-sizing: border-box;
 }
 .container {
     max-width: 800px;
     margin: 0 auto;
+    width: 100%;
 }
 h1 {
     text-align: center;
     color: #dbe2df;
+    font-size: 2rem;
 }
 .input-group {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     margin-bottom: 20px;
+    gap: 10px;
 }
 input, select, button {
     padding: 10px;
@@ -24,17 +30,14 @@ input, select, button {
     background-color: #333;
     color: #ffffff;
     border-radius: 5px;
-}
-input, select {
-    flex-grow: 1;
-    margin-right: 10px;
+    width: 80%;
+    max-width: 300px;
 }
 button {
     background-color: #dbe2df;
     color: #000000;
     cursor: pointer;
     transition: background-color 0.3s;
-    border-radius: 5px;
 }
 button:hover {
     background-color: #b3bac1;
@@ -48,6 +51,7 @@ li {
     margin-bottom: 10px;
     padding: 15px;
     display: flex;
+    flex-direction: column;
     justify-content: space-between;
     align-items: center;
     cursor: move;
@@ -62,14 +66,22 @@ li:hover {
     margin-top: 20px;
     color: #03dac6;
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: center;
 }
+.task-actions, .group-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 10px;
+    justify-content: center;
+}
 .task-actions button, .group-actions button {
-    margin-left: 10px;
     padding: 5px 10px;
     font-size: 14px;
     border-radius: 5px;
+    flex: 0 1 auto;
 }
 .completed {
     text-decoration: line-through;
@@ -84,4 +96,21 @@ li:hover {
 }
 .dragging {
     opacity: 0.5;
+}
+@media (min-width: 601px) {
+    .input-group {
+        flex-direction: row;
+        justify-content: center;
+    }
+    input, select, button {
+        width: auto;
+        max-width: none;
+    }
+    li {
+        flex-direction: row;
+        align-items: center;
+    }
+    .task-actions, .group-actions {
+        margin-top: 0;
+    }
 }
